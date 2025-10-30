@@ -3,32 +3,42 @@ const TARGET_BASE = process.env.RAILWAY_PROXY_TARGET || 'http://ballast.proxy.rl
 
 export default async function handler(req: any, res: any) {
   try {
-    const { path = [] } = req.query as { path?: string[] };
-    const url = `${TARGET_BASE}/${Array.isArray(path) ? path.join('/') : ''}`;
+    // Handle CORS preflight and allow common headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      res.status(200).end();
+      return;
+    }
+
+    const segments = (req.query?.path ?? []) as string[];
+    const url = `${TARGET_BASE}/${Array.isArray(segments) ? segments.join('/') : ''}`;
 
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
       if (typeof value === 'string') headers[key] = value;
     }
-    // Ensure JSON content-type for POST/PUT/PATCH when body exists
-    if (req.method && ['POST', 'PUT', 'PATCH'].includes(req.method) && !headers['content-type']) {
-      headers['content-type'] = 'application/json';
+    if (req.method && ['POST', 'PUT', 'PATCH'].includes(req.method)) {
+      headers['content-type'] = headers['content-type'] || 'application/json';
     }
 
-    const init: RequestInit = {
+    // Use Node fetch; req.body may be object or string
+    const bodyNeeded = req.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method);
+    const body = bodyNeeded
+      ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}))
+      : undefined;
+
+    const resp = await fetch(url, {
       method: req.method,
       headers,
-      body: req.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
-        ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {}))
-        : undefined,
-    } as RequestInit;
+      body,
+    } as any);
 
-    const resp = await fetch(url, init as any);
-    const buf = Buffer.from(await resp.arrayBuffer());
-
-    // Forward status and headers
+    // Pipe response back
+    const arrayBuf = await resp.arrayBuffer();
     resp.headers.forEach((v, k) => res.setHeader(k, v));
-    res.status(resp.status).send(buf);
+    res.status(resp.status).send(Buffer.from(arrayBuf));
   } catch (err: any) {
     res.status(502).json({ message: 'Proxy error', error: err?.message || String(err) });
   }
