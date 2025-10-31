@@ -35,9 +35,7 @@
 </div>
 
 > **Project Authenticity Statement:**  
-> This entire project was independently designed, developed, and deployed by **Kalpak Manwar**.  
-> Every line of code, feature, design decision, and deployment configuration was personally implemented.  
-> I can explain and defend any technical choice in this codebase during technical interviews.
+> This entire project was independently designed, developed, and deployed by **Kalpak Manwar**.
 
 **Skills Demonstrated:**
 - ✅ Full-stack web development (React + Spring Boot)
