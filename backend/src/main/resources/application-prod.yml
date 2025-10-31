@@ -1,0 +1,181 @@
+# ====================================
+# Production Profile Configuration
+# ====================================
+# This profile is activated when SPRING_PROFILES_ACTIVE=prod
+# Optimized for Railway/Cloud deployment
+
+spring:
+  # ====================================
+  # Database Configuration (Railway)
+  # ====================================
+  datasource:
+    url: ${DATABASE_URL:${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/serenmind_db}}
+    username: ${MYSQLUSER:${SPRING_DATASOURCE_USERNAME:root}}
+    password: ${MYSQLPASSWORD:${SPRING_DATASOURCE_PASSWORD:root}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # Connection pooling (HikariCP)
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: SerenMind-HikariCP
+      # Leak detection for troubleshooting
+      leak-detection-threshold: 60000
+  
+  jpa:
+    hibernate:
+      ddl-auto: none  # Let Flyway handle schema
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        # Batch processing for performance
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
+  
+  # ====================================
+  # Flyway Configuration
+  # ====================================
+  flyway:
+    validate-on-migrate: true
+    baseline-on-migrate: true
+    out-of-order: false
+    # Fail fast on migration errors
+    fail-on-missing-locations: true
+
+# ====================================
+# Server Configuration
+# ====================================
+server:
+  port: ${PORT:8080}  # Railway provides PORT env var
+  
+  # Compression
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  
+  # Error handling (security-hardened)
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+  
+  # Tomcat tuning for cloud
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 5
+    connection-timeout: 20000
+
+# ====================================
+# Logging Configuration
+# ====================================
+logging:
+  level:
+    root: WARN
+    com.serenmind: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+  
+  # Log to file in production
+  file:
+    name: /app/logs/serenmind.log
+    max-size: 10MB
+    max-history: 30
+    total-size-cap: 1GB
+  
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# ====================================
+# Application-Specific Configuration
+# ====================================
+app:
+  # OpenAI Configuration
+  openai:
+    mock-mode: false  # Use real OpenAI API in production
+    # Ensure these are set via environment variables:
+    # OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL
+  
+  # JWT Configuration (set via env vars)
+  # JWT_SECRET, JWT_ACCESS_EXPIRATION_MS, JWT_REFRESH_EXPIRATION_MS
+  
+  # CORS Configuration (set via env vars)
+  # CORS_ALLOWED_ORIGINS should be your production frontend URL
+
+# ====================================
+# Actuator Configuration (Monitoring)
+# ====================================
+management:
+  endpoints:
+    web:
+      exposure:
+        # Expose only essential endpoints in production
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  
+  endpoint:
+    health:
+      # Hide detailed health info from public
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+  
+  metrics:
+    export:
+      # Enable Prometheus metrics if needed
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: production
+  
+  # Secure actuator endpoints
+  server:
+    port: 8080  # Same as main port; secure with Spring Security
+
+# ====================================
+# Production Security Notes
+# ====================================
+# 
+# IMPORTANT: Set these environment variables in production:
+# 
+# Required:
+#   - JWT_SECRET: Strong 256-bit+ secret key
+#   - OPENAI_API_KEY: Your OpenAI API key
+#   - MYSQL_PASSWORD: Secure database password
+#   - MYSQL_ROOT_PASSWORD: Secure root password
+# 
+# Recommended:
+#   - CORS_ALLOWED_ORIGINS: Your production frontend URL(s)
+#   - SPRING_DATASOURCE_URL: Production database URL
+#   - LOGGING_LEVEL_COM_SERENMIND: INFO or WARN
+# 
+# SSL/TLS:
+#   - Enable HTTPS in your reverse proxy (Nginx, Traefik, etc.)
+#   - Or configure Spring Boot SSL:
+#     server.ssl.enabled=true
+#     server.ssl.key-store=/path/to/keystore.p12
+#     server.ssl.key-store-password=${KEYSTORE_PASSWORD}
+#     server.ssl.key-store-type=PKCS12
+# 
+# Performance Tuning:
+#   - Adjust HikariCP pool size based on load
+#   - Monitor with Actuator metrics and Prometheus
+#   - Consider Redis for session/cache if scaling horizontally
+# 
+# ====================================
+
